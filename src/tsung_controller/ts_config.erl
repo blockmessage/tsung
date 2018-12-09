@@ -1282,7 +1282,8 @@ set_net_type("ws")  -> ts_server_websocket;
 set_net_type("wss")  -> ts_server_websocket_ssl;
 set_net_type("bosh")  -> ts_bosh;
 set_net_type("bosh_ssl") -> ts_bosh_ssl;
-set_net_type("erlang") -> ts_erlang.
+set_net_type("erlang") -> ts_erlang;
+set_net_type(Type) -> list_to_atom("ts_" ++ Type).
 
 get_dynvar_name(VarNameStr) ->
     %% check if the var name is for an array (myvar[N])
