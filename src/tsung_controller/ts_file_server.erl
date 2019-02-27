@@ -102,7 +102,7 @@ get_next_line({Pid,_DynData}) when is_pid(Pid)->
         Error     ->  Error
     end;
 get_next_line(FileID)->
-    gen_server:call({global, ?MODULE}, {get_next_line, FileID}).
+    gen_server:call({global, ?MODULE}, {get_next_line, FileID}, 600000).
 get_next_line() ->
     get_next_line(default).
 
