@@ -93,7 +93,7 @@ start_phase(load_config, _StartType, _PhaseArgs) ->
                     end,
                 {File, T}
         end,
-    case ts_config_server:read_config(Conf,Timeout) of
+    case ts_config_server:read_config(Conf,Timeout+600000) of
         {error,Reason}->
             io:format(standard_error,"Config Error, aborting ! ~p~n ",[Reason]),
             init:stop(1);

@@ -113,6 +113,7 @@ newbeam(Host, Args)->
 %% Function: get_req/2
 %% Description: get Nth request from given session Id
 %% Returns: #message | {error, Reason}
+
 %%--------------------------------------------------------------------
 get_req(Id, Count)->
     gen_server:call({global, ?MODULE},{get_req, Id, Count}).
@@ -221,7 +222,8 @@ handle_call({read_config, ConfigFile}, _From, State=#state{logdir=LogDir}) ->
             print_info(),
             NewLast=LastSess#session{size = LastReqId, type=Config#config.main_sess_type},
             %% start the file server (if defined) using a separate process (it can be long)
-            spawn(?MODULE, start_file_server, [Config]),
+            %% spawn(?MODULE, start_file_server, [Config]),
+            start_file_server(Config),
             ConfigTmp = loop_load(sort_static(Config#config{sessions=[NewLast]++Sessions})),
             %% Compute per phase popularities
             NewConfig = compute_popularities(ConfigTmp),
@@ -698,7 +700,7 @@ start_file_server(Config=#config{file_server=Filenames}) ->
     FileSrv  = {ts_file_server, {ts_file_server, start, []}, transient, 2000,
                 worker, [ts_msg_server]},
     supervisor:start_child(ts_controller_sup, FileSrv),
-    ts_file_server:read(Filenames),
+    ts_file_server:read(Filenames, 600000),
     ?LOG("Starting user servers if needed~n",?INFO),
     setup_user_servers(Config#config.vhost_file,Config#config.user_server_maxuid).
 
