@@ -73,6 +73,7 @@
                 last_beam_id = 0, % last tsung beam id (used to set nodenames)
                 ending_beams = 0, % number of beams with no new users to start
                 lastips,          % store next ip to choose for each client host
+                server_choose_order,
                 total_weight      % total weight of client machines
                }).
 
@@ -193,8 +194,9 @@ get_jobs_state() ->
 init([LogDir]) ->
     process_flag(trap_exit,true),
     {ok, MyHostName} = ts_utils:node_to_hostname(node()),
+    ServerChoseOrder = application:get_env(tsung, server_choose_order),
     ?LOGF("Config server started, logdir is ~p~n ",[LogDir],?NOTICE),
-    {ok, #state{logdir=LogDir, hostname=list_to_atom(MyHostName)}}.
+    {ok, #state{logdir=LogDir, hostname=list_to_atom(MyHostName), server_choose_order = ServerChoseOrder}}.
 
 %%--------------------------------------------------------------------
 %% Function: handle_call/3
@@ -284,7 +286,7 @@ handle_call({get_user_port, IP}, _From, State=#state{ports=Ports}) ->
     {reply, {ok, CPort}, State#state{ports = NewPorts}};
 
 %% get a new session id and user parameters for the given node
-handle_call({get_next_session, HostName, PhaseId}, _From, State=#state{users=Users}) ->
+handle_call({get_next_session, HostName, PhaseId}, _From, State=#state{users=Users, server_choose_order=Order}) ->
     Config = State#state.config,
     {value, Client} = lists:keysearch(HostName, #client.host, Config#config.clients),
     ?DebugF("get new session for ~p~n",[_From]),
@@ -292,7 +294,7 @@ handle_call({get_next_session, HostName, PhaseId}, _From, State=#state{users=Use
         {ok, Session=#session{id=Id}} ->
             ?LOGF("Session ~p chosen~n",[Id],?INFO),
             ts_mon:newclient({Id,?TIMESTAMP}),
-            {IPParam, Server} = get_user_param(Client,Config),
+            {IPParam, Server} = get_user_param(Client,Config, Order, Users),
             {reply, {ok, Session#session{client_ip= IPParam, server=Server,userid=Users,
                                          dump=Config#config.dump, seed=Config#config.seed}},
              State#state{users=Users+1} };
@@ -535,11 +537,21 @@ set_start_date(undefined)->
      ts_utils:add_time(?TIMESTAMP, ?config(warm_time));
 set_start_date(Date) -> Date.
 
-get_user_param(Client,Config)->
+get_user_param(Client,Config) ->
+    get_user_param(Client,Config, random, 0).
+
+get_user_param(Client,Config, random, _)->
     {ok,IP} = choose_client_ip(Client),
     {ok, Server} = choose_server(Config#config.servers, Config#config.total_server_weights),
     CPort = choose_port(IP, Config#config.ports_range),
+    { {IP, CPort}, Server};
+get_user_param(Client, Config, first_full_and_then_next, NowUserNum) ->
+    {ok,IP} = choose_client_ip(Client),
+    MaxNumTotal = lists:sum([MaxNum||#arrivalphase{maxnumber = MaxNum}<-Config#config.arrivalphases]),
+    {ok, Server} = choose_server_first_full_and_then_next(Config#config.servers, Config#config.total_server_weights,  NowUserNum, MaxNumTotal),
+    CPort = choose_port(IP, Config#config.ports_range),
     { {IP, CPort}, Server}.
+
 
 %%----------------------------------------------------------------------
 %% Func: choose_client_ip/1
@@ -573,6 +585,20 @@ choose_server([S=#server{weight=P} | _],Rand,Cur) when Rand =< P+Cur->
     {ok, S};
 choose_server([#server{weight=P} | SList], Rand, Cur) ->
     choose_server(SList, Rand, Cur+P).
+
+choose_server_first_full_and_then_next(Servers, TotalWeight, NowUserNum, MaxNumTotal) ->
+    lists:foldl(
+      fun(_, {ok, S}) ->
+              {ok, S};
+         (S=#server{weight=P}, Acc) ->
+              NewAcc = Acc + MaxNumTotal * P div TotalWeight,
+              case NowUserNum =< NewAcc of
+                  true ->
+                      {ok, S};
+                  false ->
+                      NewAcc
+              end
+      end, 0, Servers).
 
 %%----------------------------------------------------------------------
 %% Func: choose_rr/3

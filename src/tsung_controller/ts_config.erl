@@ -117,14 +117,17 @@ parse(Element = #xmlElement{name=server, attributes=Attrs}, Conf=#config{servers
     Type   = set_net_type(getAttr(Attrs, type)),
     Total  = OldTotal + Weight,
     lists:foldl(fun parse/2,
-        Conf#config{servers = [#server{host  = Server,
+        Conf#config{servers = ServerList ++ [#server{host  = Server,
                                        port  = Port,
                                        weight= Weight,
                                        type  = Type
-                                     }|ServerList], total_server_weights = Total},
+                                     }], total_server_weights = Total},
         Element#xmlElement.content);
 
-
+parse(_Element = #xmlElement{name = servers, attributes=Attrs}, Conf) ->
+    Order = getAttr(atom, Attrs, order, random),
+    application:set_env(tsung, server_choose_order, Order),
+    Conf;
 
 %% Parsing the cluster monitoring element (monitor)
 parse(Element = #xmlElement{name=monitor, attributes=Attrs},
