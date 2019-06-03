@@ -194,7 +194,7 @@ get_jobs_state() ->
 init([LogDir]) ->
     process_flag(trap_exit,true),
     {ok, MyHostName} = ts_utils:node_to_hostname(node()),
-    ServerChoseOrder = application:get_env(tsung, server_choose_order),
+    ServerChoseOrder = application:get_env(tsung, server_choose_order, random),
     ?LOGF("Config server started, logdir is ~p~n ",[LogDir],?NOTICE),
     {ok, #state{logdir=LogDir, hostname=list_to_atom(MyHostName), server_choose_order = ServerChoseOrder}}.
 

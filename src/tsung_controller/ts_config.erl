@@ -124,10 +124,11 @@ parse(Element = #xmlElement{name=server, attributes=Attrs}, Conf=#config{servers
                                      }], total_server_weights = Total},
         Element#xmlElement.content);
 
-parse(_Element = #xmlElement{name = servers, attributes=Attrs}, Conf) ->
+parse(Element = #xmlElement{name = servers, attributes=Attrs}, Conf=#config{}) ->
     Order = getAttr(atom, Attrs, order, random),
     application:set_env(tsung, server_choose_order, Order),
-    Conf;
+    lists:foldl(fun parse/2,
+         Conf, Element#xmlElement.content);
 
 %% Parsing the cluster monitoring element (monitor)
 parse(Element = #xmlElement{name=monitor, attributes=Attrs},
