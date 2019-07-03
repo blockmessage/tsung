@@ -232,7 +232,11 @@ handle_call({read_config, ConfigFile}, _From, State=#state{logdir=LogDir}) ->
             ts_job_notify:listen(NewConfig#config.job_notify_port),
             case check_config(NewConfig) of
                 ok ->
-                    {reply, ok, State#state{config=NewConfig, static_users=NewConfig#config.static_users,total_weight = Sum}};
+                    ServerChoseOrder = application:get_env(tsung, server_choose_order, random),
+                    {reply, ok, State#state{config=NewConfig,
+                                            static_users=NewConfig#config.static_users,
+                                            total_weight = Sum,
+                                            server_choose_order = ServerChoseOrder}};
                 {error, Reason} ->
                     ?LOGF("Error while checking config: ~p~n",[Reason],?EMERG),
                     {reply, {error, Reason}, State}
@@ -294,6 +298,7 @@ handle_call({get_next_session, HostName, PhaseId}, _From, State=#state{users=Use
         {ok, Session=#session{id=Id}} ->
             ?LOGF("Session ~p chosen~n",[Id],?INFO),
             ts_mon:newclient({Id,?TIMESTAMP}),
+            %?LOGF("Try Choose:Order=~p, Users=~p~n", [Order, Users], ?ERR),
             {IPParam, Server} = get_user_param(Client,Config, Order, Users),
             {reply, {ok, Session#session{client_ip= IPParam, server=Server,userid=Users,
                                          dump=Config#config.dump, seed=Config#config.seed}},
@@ -549,6 +554,7 @@ get_user_param(Client, Config, first_full_and_then_next, NowUserNum) ->
     {ok,IP} = choose_client_ip(Client),
     MaxNumTotal = lists:sum([MaxNum||#arrivalphase{maxnumber = MaxNum}<-Config#config.arrivalphases]),
     {ok, Server} = choose_server_first_full_and_then_next(Config#config.servers, Config#config.total_server_weights,  NowUserNum, MaxNumTotal),
+    %?LOGF("choose_server:Server=~p~n",[Server],?ERR),
     CPort = choose_port(IP, Config#config.ports_range),
     { {IP, CPort}, Server}.
 
